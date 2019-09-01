@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require("express");
 const MongoClient = require("mongodb").MongoClient;
 const objectId = require("mongodb").ObjectID;
@@ -5,7 +6,10 @@ const uri = "mongodb+srv://fire:Sync913n@cluster0-rdct6.mongodb.net/test?retryWr
 const client = new MongoClient(uri, {useNewUrlParser: true});
 const app = express();
 const jsonParser = express.json();
+const {passport} = require('./server/auth/passport');
+const API = require('./server/controllers/index');
 const WebSocketServer = new require('ws');
+
 const BFX = require('bitfinex-api-node');
 const bfx = new BFX({
   apiKey: '1zy6hV34MYvq5Gn6Pqmtvff8sMIbs1l3tO5BQUVj5nG',
@@ -16,8 +20,14 @@ const bfx = new BFX({
     packetWDDelay: 10 * 1000
   }
 });
+const bfxRest1 = bfx.rest(1, {});
+const bfxRest2 = bfx.rest(2, {});
+const ws = bfx.ws();
+let clients = [];
 let dbClient;
 
+app.use(passport.initialize());
+app.use(passport.session());
 app.use(function (req, res, next) {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -25,14 +35,10 @@ app.use(function (req, res, next) {
   res.header('Access-Control-Allow-Credentials', true);
   next();
 });
-
-const bfxRest1 = bfx.rest(1, {});
-const bfxRest2 = bfx.rest(2, {});
-const ws = bfx.ws();
-var clients = [];
+API.init(app);
 
 // WebSocket-сервер на порту 8081
-var webSocketServer = new WebSocketServer.Server({
+let webSocketServer = new WebSocketServer.Server({
   port: 8081
 });
 webSocketServer.on('connection', function (ws) {
@@ -45,8 +51,6 @@ webSocketServer.on('connection', function (ws) {
     delete clients[id];
   });
 });
-
-
 
 // TIMER
 let allCur = [];
@@ -83,9 +87,6 @@ bfxRest1.get_symbols((err2, res2) => {
     });
   }, 3500);
 });
-
-
-
 
 app.use(express.static(__dirname + "/page"));
 
