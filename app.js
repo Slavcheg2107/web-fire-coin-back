@@ -1,19 +1,19 @@
-const path = require('path');
 const express = require("express");
-const MongoClient = require("mongodb").MongoClient;
-const objectId = require("mongodb").ObjectID;
-const uri = "mongodb+srv://fire:Sync913n@cluster0-rdct6.mongodb.net/test?retryWrites=true&w=majority";
-const client = new MongoClient(uri, {useNewUrlParser: true});
-const app = express();
+const config = require("config");
+const jwt = require('jsonwebtoken');
+const mongoose = require("mongoose");
+const BFX = require('bitfinex-api-node');
 const jsonParser = express.json();
-const {passport} = require('./server/auth/passport');
-const API = require('./server/controllers/index');
 const WebSocketServer = new require('ws');
 
-const BFX = require('bitfinex-api-node');
+//CONST
+const app = express();
+const PORT = config.get('port') || 5000;
+const WS_PORT = config.get('ws_port') || 8081;
+const TIME_UPDATE_WS = config.get('time_update_ws') || 3500;
 const bfx = new BFX({
-  apiKey: '1zy6hV34MYvq5Gn6Pqmtvff8sMIbs1l3tO5BQUVj5nG',
-  apiSecret: 'UGzn7da23ShkMF5jl6yjx66omXtrbSFtyZKIFXai3Ty',
+  apiKey: config.get('api_key_bfx'),
+  apiSecret: config.get('api_secret_bfx'),
   ws: {
     autoReconnect: true,
     seqAudit: true,
@@ -22,12 +22,12 @@ const bfx = new BFX({
 });
 const bfxRest1 = bfx.rest(1, {});
 const bfxRest2 = bfx.rest(2, {});
-const ws = bfx.ws();
-let clients = [];
-let dbClient;
+const BFX_WS = bfx.ws();
 
-app.use(passport.initialize());
-app.use(passport.session());
+//Var
+let CLIENTS_WS = [];
+
+//CORS
 app.use(function (req, res, next) {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -35,34 +35,51 @@ app.use(function (req, res, next) {
   res.header('Access-Control-Allow-Credentials', true);
   next();
 });
-API.init(app);
+// Body JSON
+app.use(express.json({extended: true}));
 
-// WebSocket-сервер на порту 8081
-let webSocketServer = new WebSocketServer.Server({
-  port: 8081
+// WebSocket-сервер
+let allCur = [];
+const webSocketServer = new WebSocketServer.Server({
+  port: WS_PORT
+}, function () {
+  console.log("WS start port: " + WS_PORT);
 });
-webSocketServer.on('connection', function (ws) {
-  var id = Math.random();
-  clients.push(ws);
-  console.log("новое соединение " + id);
+webSocketServer.on('connection', function (ws, h) {
+  let token = h.url.replace('/?token=', '');
+  if (!!token) {
+    const decoded = jwt.verify(token, config.get('jwt_secret'));
+    if(decoded){
+      const id = decoded.userId;
+      CLIENTS_WS.push(ws);
+      console.log("новое соединение " + id);
+      let resAllCur = {
+        type: 'web.allCur',
+        data: allCur
+      };
+      ws.send(JSON.stringify(resAllCur));
 
-  ws.on('close', function () {
-    console.log('соединение закрыто ' + id);
-    delete clients[id];
-  });
+      ws.on('close', function () {
+        console.log('соединение закрыто ' + id);
+        delete CLIENTS_WS[id];
+      });
+    }
+  } else {
+    ws.close();
+  }
 });
 
 // TIMER
-let allCur = [];
 bfxRest1.get_symbols((err2, res2) => {
   if (err2) console.log(err2);
-  allCur = res2.map(cur => 't' + cur.toUpperCase());
+  allCur = res2.map(cur => cur.toUpperCase());
+
   setInterval(()=>{
     bfxRest2.tickers(res2.map(cur => 't' + cur.toUpperCase()), (err3, res3) => {
       let table = [];
       for (let i = 0; i < res3.length; i += 1) {
         let t = res3[i];
-        if(t[0] !== 'tBTCF0:USTF0' && t[0] !== 'tETHF0:USTF0') {
+        if(t[0] !== 'tBTCF0:USTF0' && t[0] !== 'tETHF0:USTF0' && t[0].includes('USD') && !t[0].includes('TEST') ) {
           table.push(
             {
               'symbol': t[0].slice(1),
@@ -82,29 +99,33 @@ bfxRest1.get_symbols((err2, res2) => {
       let res = {
         type: 'web.currency',
         data: table
-      }
-      clients.forEach(i => i.send(JSON.stringify(res)));
+      };
+      CLIENTS_WS.forEach(i => i.send(JSON.stringify(res)));
     });
-  }, 3500);
+  }, TIME_UPDATE_WS);
 });
 
-app.use(express.static(__dirname + "/page"));
+//ROUTES
+app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/keys', require('./routes/keyUser.routes'));
+//app.use('/api/balances', require('./routes/balances.routes'));
 
-client.connect((err, client) => {
-  dbClient = client;
-  app.locals.collection = client.db("tasksDB").collection("listTask");
-  app.listen(3000, function () {
-    console.log("Сервер ожидает подключения...");
-  });
-});
+//START
+async function start(){
+  try {
+    await mongoose.connect(config.get('mongo_url'), {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      useCreateIndex: true
+    });
+    app.listen(PORT, () => {console.log("Сервер ожидает подключения... Port: " + PORT)});
+  } catch (e) {
+    console.log('Server Error', e.message);
+    process.exit(1);
+  }
+}
 
-
-app.get("/api/balances/", function (req, res) {
-  bfxRest1.wallet_balances((err2, res2) => {
-    if (err2) console.log(err2)
-    res.send(res2);
-  });
-});
+start();
 
 app.get("/api/curseAll/", function (req, res) {
   bfxRest1.get_symbols((err2, res2) => {
@@ -136,71 +157,6 @@ app.get("/api/curseAll/", function (req, res) {
 
 });
 
-app.get("/api/tasks", function (req, res) {
-  const collection = req.app.locals.collection;
-  collection.find({}).toArray(function (err, tasks) {
-
-    if (err) return console.log(err);
-    res.send(tasks.reverse())
-  });
-});
-
-app.get("/api/tasks/:id", function (req, res) {
-  console.log(req.headers['x-access-token']);
-  const id = new objectId(req.params.id);
-  const collection = req.app.locals.collection;
-  collection.findOne({_id: id}, function (err, task) {
-
-    if (err) return console.log(err);
-    res.send(task.reverse());
-  });
-});
-
-app.post("/api/tasks", jsonParser, function (req, res) {
-  if (!req.body) return res.sendStatus(400);
-  const name = req.body.name;
-  const date = req.body.date;
-  const complete = req.body.complete;
-  const task = {name, date, complete};
-  const collection = req.app.locals.collection;
-  collection.insertOne(task, function (err, result) {
-    if (err) return console.log(err);
-    res.send(task);
-  });
-});
-
-app.put("/api/tasks", jsonParser, function (req, res) {
-  if (!req.body) return res.sendStatus(400);
-  const id = new objectId(req.body._id);
-  const name = req.body.name;
-  const date = req.body.date;
-  const complete = req.body.complete;
-  const task = {name, date, complete};
-
-  const collection = req.app.locals.collection;
-  collection.findOneAndUpdate({_id: id}, {$set: task},
-    {returnOriginal: false}, function (err, result) {
-
-      if (err) return console.log(err);
-      const taskRes = result.value;
-      res.send(taskRes);
-    });
-});
-
-app.delete("/api/tasks/:id", function (req, res) {
-  const id = new objectId(req.params.id);
-  const collection = req.app.locals.collection;
-  let taskRes;
-  collection.findOneAndDelete({_id: id}, function (err, result) {
-    if (err) return console.log(err);
-    taskRes = result.value;
-    res.send(taskRes);
-  });
-
-  clients.forEach(i => i.send(req.params.id));
-});
-
 process.on("SIGINT", () => {
-  dbClient.close();
   process.exit();
 });

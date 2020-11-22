@@ -1,24 +1,32 @@
 {
-  "name": "start",
+  "name": "fire-coin",
   "version": "1.0.0",
-  "description": "",
+  "description": "Fire coin - bitfinex app use",
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "stars": "node app"
+    "stars": "node app.js",
+    "server": "nodemon app.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bitfinex-api-node": "^2.0.8",
+    "bcryptjs": "^2.4.3",
+    "bitfinex-api-node": "^2.0.10",
     "body-parser": "^1.19.0",
+    "config": "^3.3.2",
     "express": "^4.17.1",
-    "lodash": "^4.17.15",
-    "mongodb": "^3.3.0-beta2",
-    "passport": "^0.4.0",
-    "passport-jwt": "^4.0.0",
+    "express-validator": "^6.6.1",
+    "jsonwebtoken": "^8.5.1",
+    "lodash": "^4.17.20",
+    "mongodb": "^3.6.3",
+    "mongoose": "^5.10.15",
     "path": "^0.12.7",
-    "websocket": "^1.0.29",
-    "ws": "^7.1.1"
+    "websocket": "^1.0.32",
+    "ws": "^7.4.0"
+  },
+  "devDependencies": {
+    "concurrently": "^5.3.0",
+    "nodemon": "^2.0.6"
   }
 }

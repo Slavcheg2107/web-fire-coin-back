@@ -1,0 +1,10 @@
+{
+  "port": 5000,
+  "ws_port": 8081,
+  "time_update_ws": 3500,
+  "mongo_url": "mongodb+srv://fire:1234qwer4321@cluster0-vmelf.mongodb.net/app?retryWrites=true&w=majority",
+  "salt_work_factor": 12,
+  "api_key_bfx": "1zy6hV34MYvq5Gn6Pqmtvff8sMIbs1l3tO5BQUVj5nG",
+  "api_secret_bfx": "UGzn7da23ShkMF5jl6yjx66omXtrbSFtyZKIFXai3Ty",
+  "jwt_secret": "web_fire_coin_913"
+}
