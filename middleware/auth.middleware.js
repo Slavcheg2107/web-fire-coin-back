@@ -10,13 +10,13 @@ module.exports = (req, res, next) => {
     const token = req.headers.authorization.split(' ')[1]; // "Bearer TOKEN"
 
     if (!token) {
-      return res.status(401).json({ message: 'Нет авторизации' });
+      return res.status(401).json({ message: 'Нет авторизации', type: '0'});
     }
 
     const decoded = jwt.verify(token, config.get('jwt_secret'));
     req.user = decoded;
     next()
   } catch (e) {
-    res.status(401).json({ message: 'Нет авторизации' });
+    res.status(401).json({ message: 'Нет авторизации', type: '0'});
   }
 };

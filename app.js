@@ -48,22 +48,26 @@ const webSocketServer = new WebSocketServer.Server({
 webSocketServer.on('connection', function (ws, h) {
   let token = h.url.replace('/?token=', '');
   if (!!token) {
-    const decoded = jwt.verify(token, config.get('jwt_secret'));
-    if(decoded){
-      const id = decoded.userId;
-      CLIENTS_WS.push(ws);
-      console.log("новое соединение " + id);
-      let resAllCur = {
-        type: 'web.allCur',
-        data: allCur
-      };
-      ws.send(JSON.stringify(resAllCur));
+      try {
+          const decoded = jwt.verify(token, config.get('jwt_secret'));
+          if(decoded){
+              const id = decoded.userId;
+              CLIENTS_WS.push(ws);
+              console.log("новое соединение " + id);
+              let resAllCur = {
+                  type: 'web.allCur',
+                  data: allCur
+              };
+              ws.send(JSON.stringify(resAllCur));
 
-      ws.on('close', function () {
-        console.log('соединение закрыто ' + id);
-        delete CLIENTS_WS[id];
-      });
-    }
+              ws.on('close', function () {
+                  console.log('соединение закрыто ' + id);
+                  delete CLIENTS_WS[id];
+              });
+          }
+      } catch (e) {
+          ws.close();
+      }
   } else {
     ws.close();
   }
